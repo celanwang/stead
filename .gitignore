@@ -1,0 +1,29 @@
+# Go binaries and build output
+/stead
+!/stead/
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go test binaries, coverage reports, and profiles
+*.test
+coverage.out
+*.coverprofile
+*.prof
+
+# macOS metadata
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+
+# Windows metadata
+Thumbs.db
+[Dd]esktop.ini
+
+# Linux desktop metadata
+.directory
+.Trash-*/
