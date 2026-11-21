@@ -1,1 +1,5 @@
-Stead’s line is an offer. The agent volunteers to act on your behalf, and its name is tucked inside the word *instead*.
+# Stead
+
+**I’ll go instead.**
+
+Stead is the volunteer tucked inside *instead*. Hand it a task, and that part of your day is yours again.
