@@ -27,3 +27,19 @@ Thumbs.db
 # Linux desktop metadata
 .directory
 .Trash-*/
+
+# IDE / editor
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+.fleet/
