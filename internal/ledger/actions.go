@@ -160,6 +160,15 @@ func (l *Ledger) settle(ctx context.Context, r delegation.Receipt, verification 
 		if verification && (r.State == delegation.Unknown || (row.State != delegation.Unknown && row.State != r.State)) {
 			return errors.New("verification requires an action with an unknown outcome")
 		}
+		if verification {
+			var proof string
+			if err := tx.Raw("SELECT message_id FROM channel_delivery_acknowledgments WHERE action_id = ?", r.ActionID).Scan(&proof).Error; err != nil {
+				return err
+			}
+			if proof != "" && (r.State != delegation.Delivered || proof != r.Detail) {
+				return errors.New("verification conflicts with an existing provider acknowledgment")
+			}
+		}
 		r.At = l.now()
 		a, changed, err := delegation.ApplyReceipt(row.Data, r)
 		if err != nil || !changed {

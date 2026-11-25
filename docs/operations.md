@@ -37,7 +37,7 @@ Run `docker compose up --build -d --wait` after updating the checkout. Compose k
 
 ## Faults and recovery
 
-Check `/readyz` before routing workload. A lost MySQL session fences the worker from new ledger transactions and causes it to exit. Compose starts a replacement, which reacquires the lock and verifies interrupted actions where receipts exist. If a Feishu request has an ambiguous outcome, check the destination with an operator and record the verified result with `stead settle`. The worker retains the action and resource occupation while the outcome is unknown.
+Check `/readyz` before routing workload. A lost MySQL session fences the worker from new ledger transactions and causes it to exit. Compose starts a replacement, which reacquires the lock and verifies interrupted actions where receipts exist. The Feishu sender records a successful provider message ID before settling the action. A replacement worker can settle from that acknowledgment. When no acknowledgment was recorded and the outcome is ambiguous, check the destination with an operator and record the verified result with `stead settle`. The worker retains the action and resource occupation while the outcome is unknown.
 
 Back up the MySQL ledger before upgrades and verify restores against a separate instance. Back up the local scheduling delivery volume alongside it if you use that provider. A logical dump of the app database can be taken from the Compose database service.
 

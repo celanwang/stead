@@ -50,9 +50,13 @@ func workerCommand(flags *flag.FlagSet) command {
 		}
 		return l.WithWorkerLedger(ctx, func(leased *ledger.Ledger, probe func(context.Context) error) error {
 			router.briefing = briefing.Executor{World: leased, Other: router.local}
+			router.ack = leased.RecordDeliveryAcknowledgment
 			runtime := delegation.Runtime{
 				Store: leased, Proposer: briefing.Proposer{World: leased, Poll: *observe, Other: scheduling.Proposer{}},
-				Executor: router, Verify: leased.VerifyBriefingReceipts, Probe: probe,
+				Executor: router, Probe: probe,
+				Verify: func(ctx context.Context) error {
+					return errors.Join(leased.VerifyBriefingReceipts(ctx), leased.VerifyDeliveryAcknowledgments(ctx))
+				},
 			}
 			return runtime.Run(ctx, *interval, func(err error) { fmt.Fprintln(os.Stderr, err) })
 		})
@@ -63,6 +67,7 @@ type workerExecutor struct {
 	local    delegation.Executor
 	feishu   delegation.Executor
 	briefing briefing.Executor
+	ack      func(context.Context, delegation.Receipt) error
 }
 
 func (w workerExecutor) Execute(ctx context.Context, a delegation.Action) (delegation.Receipt, error) {
@@ -70,7 +75,17 @@ func (w workerExecutor) Execute(ctx context.Context, a delegation.Action) (deleg
 		if a.Scope.Guard != nil || w.feishu == nil {
 			return delegation.Receipt{ActionID: a.ID, State: delegation.Failed, Detail: "Feishu delivery is not enabled for this action"}, nil
 		}
-		return w.feishu.Execute(ctx, a)
+		r, err := w.feishu.Execute(ctx, a)
+		if err != nil || r.State != delegation.Delivered {
+			return r, err
+		}
+		if r.ActionID != a.ID {
+			return delegation.Receipt{}, errors.New("Feishu acknowledgment identified a different action")
+		}
+		if err := w.ack(ctx, r); err != nil {
+			return delegation.Receipt{}, fmt.Errorf("record Feishu acknowledgment: %w", err)
+		}
+		return r, nil
 	}
 	if a.Scope.Guard != nil {
 		return w.briefing.Execute(ctx, a)
