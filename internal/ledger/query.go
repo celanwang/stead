@@ -2,11 +2,27 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/celanwang/stead/internal/delegation"
 	"gorm.io/gorm"
 )
+
+func (l *Ledger) List(ctx context.Context, owner string) ([]delegation.Delegation, error) {
+	if owner == "" {
+		return nil, errors.New("list requires an owner")
+	}
+	var rows []delegationRow
+	err := l.db.WithContext(ctx).Model(&delegationRow{}).
+		Where("CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.Owner')) AS BINARY) = CAST(? AS BINARY)", owner).
+		Order("done, wake_at, id").Find(&rows).Error
+	items := make([]delegation.Delegation, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, row.Data)
+	}
+	return items, err
+}
 
 type Status struct {
 	Delegation  delegation.Delegation

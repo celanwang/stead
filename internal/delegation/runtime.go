@@ -23,6 +23,7 @@ type Runtime struct {
 	Store    Store
 	Proposer Proposer
 	Executor Executor
+	Verify   func(context.Context) error
 }
 
 func (r Runtime) Receive(ctx context.Context, e Event) (bool, error) {
@@ -36,9 +37,9 @@ func (r Runtime) Advance(ctx context.Context, id string) (Decision, error) {
 	}
 	version := s.Delegation.Version
 	var proposal Proposal
-	if Resolve(s, Proposal{}, s.At).Result == nil {
+	if s.Delegation.Briefing != nil || Resolve(s, Proposal{}, s.At).Result == nil {
 		proposal, err = r.Proposer.Propose(ctx, s)
-		if err != nil {
+		if err != nil && (s.Delegation.Briefing == nil || s.At.Before(s.Delegation.Deadline)) {
 			return Decision{}, fmt.Errorf("propose for %s: %w", id, err)
 		}
 	}
@@ -82,6 +83,11 @@ func (r Runtime) Step(ctx context.Context) error {
 		return err
 	}
 	var failures []error
+	if r.Verify != nil {
+		if err := r.Verify(ctx); err != nil {
+			failures = append(failures, fmt.Errorf("verify previous deliveries: %w", err))
+		}
+	}
 	for _, id := range ready {
 		if _, err := r.Advance(ctx, id); err != nil && !errors.Is(err, ErrStale) {
 			failures = append(failures, err)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/celanwang/stead/internal/delegation"
 	"github.com/celanwang/stead/internal/ledger"
+	"github.com/celanwang/stead/internal/scenarios/briefing"
 	"github.com/celanwang/stead/internal/scenarios/scheduling"
 	"github.com/celanwang/stead/internal/simulation"
 )
@@ -21,13 +22,16 @@ const usage = `Stead is a personal agent harness for managing delegated tasks.
 
 Usage: stead <command> [options]
 
-  migrate  Apply the MySQL schema migrations.
-  worker   Run the background worker with the local simulator.
-  submit   Submit a scheduling delegation.
-  event    Record an input, approval, revocation, or completion evidence.
-  status   Inspect a delegation and its ledger records.
-  settle   Record a verified outcome for an action awaiting verification.
-  replay   Reconstruct recorded decisions and receipts offline.
+  migrate   Apply the MySQL schema migrations.
+  worker    Run the background worker with the local providers.
+  draft     Interpret a request or validate an offline draft for review.
+  submit    Submit a scheduling delegation.
+  briefing  Prepare and deliver a reviewed briefing with deadline fallback.
+  event     Record an input, approval, revocation, or completion evidence.
+  list      List owner delegations and their current state.
+  status    Inspect a delegation and its ledger records.
+  settle    Record a verified outcome for an action awaiting verification.
+  replay    Reconstruct recorded decisions and receipts offline.
 
 Run 'stead <command> -h' for command options. Set STEAD_MYSQL_DSN for ledger access.
 `
@@ -48,8 +52,13 @@ func run(ctx context.Context, args []string) error {
 		fmt.Print(usage)
 		return nil
 	}
-	if args[0] == "replay" {
+	switch args[0] {
+	case "replay":
 		return runReplay(ctx, args[1:])
+	case "briefing":
+		return runBriefing(ctx, args[1:])
+	case "draft":
+		return runDraft(ctx, args[1:])
 	}
 
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
@@ -63,6 +72,15 @@ func run(ctx context.Context, args []string) error {
 		operation = submitCommand(flags)
 	case "event":
 		operation = eventCommand(flags)
+	case "list":
+		owner := flags.String("owner", "", "delegation owner")
+		operation = func(ctx context.Context, l *ledger.Ledger) error {
+			items, err := l.List(ctx, *owner)
+			if err != nil {
+				return err
+			}
+			return printJSON(items)
+		}
 	case "status":
 		id := flags.String("id", "", "delegation ID")
 		operation = func(ctx context.Context, l *ledger.Ledger) error {
@@ -108,15 +126,19 @@ func parseFlags(flags *flag.FlagSet, args []string) error {
 func workerCommand(flags *flag.FlagSet) command {
 	dir := flags.String("deliveries", "", "directory for simulated deliveries")
 	interval := flags.Duration("poll", 250*time.Millisecond, "ledger polling interval")
+	observe := flags.Duration("observe", 15*time.Second, "time between briefing provider checks")
 	return func(ctx context.Context, l *ledger.Ledger) error {
-		if *dir == "" {
-			return errors.New("worker requires -deliveries")
+		if *dir == "" || *observe <= 0 {
+			return errors.New("worker requires -deliveries and a positive -observe interval")
 		}
 		executor, err := simulation.NewExecutor(*dir)
 		if err != nil {
 			return err
 		}
-		runtime := delegation.Runtime{Store: l, Proposer: scheduling.Proposer{}, Executor: executor}
+		runtime := delegation.Runtime{
+			Store: l, Proposer: briefing.Proposer{World: l, Poll: *observe, Other: scheduling.Proposer{}},
+			Executor: briefing.Executor{World: l, Other: executor}, Verify: l.VerifyBriefingReceipts,
+		}
 		return l.WithWorker(ctx, func() error {
 			return runtime.Run(ctx, *interval, func(err error) { fmt.Fprintln(os.Stderr, err) })
 		})

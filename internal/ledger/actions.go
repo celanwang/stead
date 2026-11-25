@@ -55,6 +55,16 @@ func (l *Ledger) Claim(ctx context.Context, id string) (*delegation.Action, erro
 		if err != nil || queued {
 			return err
 		}
+		if a.Scope.Guard != nil {
+			var delivered bool
+			if err := tx.Raw("SELECT EXISTS(SELECT 1 FROM briefing_deliveries WHERE effect_key = ?)",
+				briefingEffectKey(a.Scope.Guard)).Scan(&delivered).Error; err != nil {
+				return err
+			}
+			if delivered {
+				return cancelClaim(tx, d, row)
+			}
+		}
 		var g grantRow
 		if err := tx.Take(&g, "id = ?", a.GrantID).Error; err != nil {
 			return err

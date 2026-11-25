@@ -30,6 +30,7 @@ type Delegation struct {
 	Deadline time.Time
 	Wait     *Wait
 	Result   *Result
+	Briefing *Briefing
 }
 
 type Wait struct {
@@ -37,18 +38,27 @@ type Wait struct {
 	Sender      string
 	Correlation string
 	Until       time.Time
+	MatchUntil  time.Time `json:",omitzero"`
 }
 
 func (w *Wait) Matches(e *Event) bool {
-	return w != nil && e != nil && w.Kind == e.Kind && w.Sender == e.Sender &&
-		w.Correlation == e.Correlation && e.ReceivedAt.Before(w.Until)
+	if w == nil || e == nil || w.Kind != e.Kind || w.Sender != e.Sender || w.Correlation != e.Correlation {
+		return false
+	}
+	until := w.Until
+	if !w.MatchUntil.IsZero() {
+		until = w.MatchUntil
+	}
+	return e.ReceivedAt.Before(until)
 }
 
 type Result struct {
-	Complete bool
-	Reason   string
-	Evidence string
-	At       time.Time
+	Complete   bool
+	Reason     string
+	Evidence   string
+	Draft      string `json:",omitempty"`
+	ArtifactID string `json:",omitempty"`
+	At         time.Time
 }
 
 type EventKind string
@@ -73,10 +83,13 @@ type Event struct {
 	Grant          *GrantTerms
 	RevokeGrantID  string
 	MayAffectGrant bool
+	Review         *ReviewNote `json:",omitempty"`
+	Amendment      *Amendment  `json:",omitempty"`
 }
 
 func (e Event) BlocksClaim(d Delegation) bool {
-	return e.Kind == Evidence || e.Kind == Approval || (e.Kind == Input && e.Sender == d.Owner && e.MayAffectGrant)
+	return e.Kind == Evidence || e.Kind == Approval || e.Kind == Amend || e.Kind == Review ||
+		(e.Kind == Input && e.Sender == d.Owner && e.MayAffectGrant)
 }
 
 type GrantTerms struct {
@@ -100,6 +113,7 @@ type Scope struct {
 	Target    string
 	Content   string
 	Resources []Resource
+	Guard     *DeliveryGuard `json:",omitempty"`
 }
 
 type Resource struct {
@@ -122,6 +136,10 @@ func (s Scope) valid() bool {
 }
 
 func (s Scope) equal(other Scope) bool {
+	return s.sameEffect(other) && s.Guard.equal(other.Guard)
+}
+
+func (s Scope) sameEffect(other Scope) bool {
 	return s.Target == other.Target && s.Content == other.Content &&
 		slices.EqualFunc(s.Resources, other.Resources, func(a, b Resource) bool {
 			return a.Key == b.Key && a.Start.Equal(b.Start) && a.End.Equal(b.End)
@@ -174,9 +192,10 @@ type Snapshot struct {
 }
 
 type Proposal struct {
-	Wait   *Wait
-	Action *ActionRequest
-	Return string
+	Wait     *Wait
+	Action   *ActionRequest
+	Return   string
+	Briefing *BriefingObservation `json:",omitempty"`
 }
 
 type ActionRequest struct {
@@ -201,6 +220,8 @@ type Decision struct {
 	Result           *Result
 	InvalidateGrants bool
 	Rejection        string
+	Briefing         *Briefing `json:",omitempty"`
+	Prepared         *Scope    `json:",omitempty"`
 }
 
 type DecisionRecord struct {

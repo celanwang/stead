@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/celanwang/stead/internal/delegation"
@@ -46,7 +47,13 @@ func (l *Ledger) Receive(ctx context.Context, e delegation.Event) (bool, error) 
 			if errors.As(err, &duplicate) && duplicate.Number == 1062 {
 				var existing eventRow
 				// Only duplicates of the source event are successful retries.
-				return tx.Take(&existing, "source = ? AND external_id = ?", e.Source, e.ExternalID).Error
+				if err := tx.Take(&existing, "source = ? AND external_id = ?", e.Source, e.ExternalID).Error; err != nil {
+					return err
+				}
+				if existing.DelegationID != d.ID {
+					return errors.New("source event already belongs to another delegation")
+				}
+				return nil
 			}
 			return err
 		}
@@ -176,13 +183,17 @@ func applyDecision(tx *gorm.DB, d delegationRow, e *delegation.Event, out delega
 		}
 	}
 	if out.InvalidateGrants {
+		cause := fmt.Sprintf("decision:%s/%d", d.ID, d.Version)
+		if e != nil {
+			cause = e.ID
+		}
 		grants, err := grantRows(tx, d.ID)
 		if err != nil {
 			return err
 		}
 		for _, g := range grants {
 			if g.Data.InvalidatedBy == "" {
-				g.Data.InvalidatedBy = e.ID
+				g.Data.InvalidatedBy = cause
 				if err := tx.Model(&g).Select("data").Updates(&g).Error; err != nil {
 					return err
 				}
@@ -211,6 +222,12 @@ func applyDecision(tx *gorm.DB, d delegationRow, e *delegation.Event, out delega
 		}).Error; err != nil {
 			return err
 		}
+	}
+	if out.Briefing != nil {
+		d.Data.Briefing = out.Briefing
+	}
+	if out.Prepared != nil {
+		d.Data.Request = *out.Prepared
 	}
 	d.Data.Wait, d.Data.Result = out.Wait, out.Result
 	d.Ready = e != nil && out.Rejection != "" && out.Wait == nil

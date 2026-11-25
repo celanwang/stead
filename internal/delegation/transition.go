@@ -9,9 +9,15 @@ import (
 
 func ValidateNew(d Delegation, at time.Time) error {
 	if d.ID == "" || len(d.ID) > 128 || d.Owner == "" || len(d.Owner) > 191 ||
-		d.Goal == "" || len(d.Sources) == 0 || !at.Before(d.Deadline) || !d.Request.valid() ||
+		d.Goal == "" || len(d.Sources) == 0 || !at.Before(d.Deadline) || d.Request.Target == "" ||
 		d.Version != 0 || d.Wait != nil || d.Result != nil {
 		return errors.New("new delegation requires an ID, owner, sources, goal, request, and future deadline")
+	}
+	if d.Briefing != nil {
+		return d.Briefing.validate()
+	}
+	if !d.Request.valid() || d.Request.Guard != nil {
+		return errors.New("invalid scheduling request")
 	}
 	for _, source := range d.Sources {
 		if source == "" || len(source) > 191 {
@@ -30,6 +36,18 @@ func ValidateEvent(d Delegation, e Event) error {
 	switch e.Kind {
 	case Input:
 		return nil
+	case Amend:
+		if d.Briefing == nil || e.Sender != d.Owner || e.Correlation != d.ID || e.Amendment == nil ||
+			!d.Briefing.validAmendment(*e.Amendment) {
+			return errors.New("invalid briefing amendment")
+		}
+		return nil
+	case Review:
+		if d.Briefing == nil || e.Sender != d.Briefing.Reviewer || e.Correlation != d.ID || e.Review == nil ||
+			e.Review.Fingerprint == "" || !d.Briefing.hasSource(e.Review.Source) {
+			return errors.New("review requires the specified reviewer and an active source fingerprint")
+		}
+		return nil
 	case Approval, Revoke, Evidence:
 		if e.Sender != d.Owner || e.Correlation == "" || (e.Kind != Approval && e.Correlation != d.ID) {
 			return errors.New("event requires the delegation owner and matching correlation")
@@ -47,6 +65,10 @@ func ValidateEvent(d Delegation, e Event) error {
 		if e.RevokeGrantID == "" {
 			return errors.New("revocation requires a grant ID")
 		}
+	case Evidence:
+		if d.Briefing != nil {
+			return errors.New("briefing delivery requires a verified provider record")
+		}
 	}
 	return nil
 }
@@ -54,6 +76,9 @@ func ValidateEvent(d Delegation, e Event) error {
 // Resolve first applies kernel rules, then accepts a valid plugin proposal.
 func Resolve(s Snapshot, p Proposal, at time.Time) Decision {
 	d, e := s.Delegation, s.Event
+	if d.Briefing != nil {
+		return resolveBriefing(s, p, at)
+	}
 	if e != nil && e.Kind == Evidence && e.ReceivedAt.Before(d.Deadline) {
 		return Decision{Result: &Result{Complete: true, Reason: "completion evidence received", Evidence: e.Raw, At: at}}
 	}
@@ -99,12 +124,26 @@ func Resolve(s Snapshot, p Proposal, at time.Time) Decision {
 			outcome.Rejection = "action lacks a current grant for its approved scope"
 			break
 		}
+		if duplicateEffect(s.Actions, action) {
+			outcome.Rejection = "a matching action is already pending, unresolved, or delivered"
+			break
+		}
 		outcome.Action = &action
 	case p.Return != "":
 		outcome.Wait = nil
 		outcome.Result = &Result{Reason: p.Return, At: at}
 	}
 	return outcome
+}
+
+func duplicateEffect(actions []Action, candidate Action) bool {
+	return hasOpenEffect(actions, candidate.Scope)
+}
+
+func hasOpenEffect(actions []Action, scope Scope) bool {
+	return slices.ContainsFunc(actions, func(a Action) bool {
+		return a.State != Failed && a.State != Canceled && a.Scope.sameEffect(scope)
+	})
 }
 
 func authorized(grants []Grant, added *Grant, d Delegation, a Action, at time.Time) bool {

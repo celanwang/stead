@@ -448,3 +448,31 @@ func TestGrantExpiryAndVerifiedFailureRelease(t *testing.T) {
 	check(t, f.calls(1)[0].ID == competing.ID, "released resource was not available to competing action")
 	t.Log("expired grant blocked dispatch while delegation stayed open; verified failure released the resource")
 }
+
+func TestKernelRejectsCrossDelegationEventAndDuplicateEffect(t *testing.T) {
+	f := newFixture(t)
+	l := f.connect()
+	a, b := f.create(l, "identity-a"), f.create(l, "identity-b")
+	first := event(a, delegation.Input, "source-event")
+	f.receive(l, first)
+	misrouted := event(b, delegation.Input, "misrouted")
+	misrouted.ExternalID = first.ExternalID
+	inserted, err := l.Receive(f.ctx, misrouted)
+	check(t, err != nil && !inserted, "misrouted source event was accepted: inserted=%v err=%v", inserted, err)
+	check(t, len(f.status(l, b.ID).Events) == 0, "misrouted event appeared on the second delegation")
+
+	action := f.stage(l, b)
+	claimed, err := l.Claim(f.ctx, action.ID)
+	must(t, err)
+	check(t, claimed != nil, "first claim was not granted")
+	must(t, l.Settle(f.ctx, delegation.Receipt{ActionID: action.ID, State: delegation.Unknown, Detail: "delivery result unknown"}))
+
+	rt := f.runtime(l)
+	rt.Proposer = proposerFunc(func(_ context.Context, _ delegation.Snapshot) (delegation.Proposal, error) {
+		return delegation.Proposal{Action: &delegation.ActionRequest{GrantID: action.GrantID, Scope: action.Scope}}, nil
+	})
+	result, err := rt.Advance(f.ctx, b.ID)
+	must(t, err)
+	check(t, result.Action == nil && result.Rejection != "", "duplicate effect accepted: %+v", result)
+	check(t, len(f.status(l, b.ID).Actions) == 1, "duplicate effect staged a second action")
+}
