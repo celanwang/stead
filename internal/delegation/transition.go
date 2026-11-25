@@ -73,6 +73,11 @@ func ValidateEvent(d Delegation, e Event) error {
 	return nil
 }
 
+func ApprovalMatches(d Delegation, e Event) bool {
+	return d.Result == nil && e.Kind == Approval && d.Wait.Matches(&e) && e.Grant != nil &&
+		e.ReceivedAt.Before(e.Grant.ExpiresAt) && e.Grant.Scope.equal(d.Request)
+}
+
 // Resolve first applies kernel rules, then accepts a valid plugin proposal.
 func Resolve(s Snapshot, p Proposal, at time.Time) Decision {
 	d, e := s.Delegation, s.Event

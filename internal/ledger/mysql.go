@@ -34,11 +34,23 @@ func Open(ctx context.Context, dsn string, clock delegation.Clock) (*Ledger, err
 	}
 	cfg.ParseTime, cfg.Loc = true, time.UTC
 	cfg.MultiStatements = false
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 5 * time.Second
+	}
+	if cfg.ReadTimeout == 0 {
+		cfg.ReadTimeout = 45 * time.Second
+	}
+	if cfg.WriteTimeout == 0 {
+		cfg.WriteTimeout = 10 * time.Second
+	}
 	connector, err := mysqldriver.NewConnector(cfg)
 	if err != nil {
 		return nil, err
 	}
 	pool := sql.OpenDB(connector)
+	pool.SetMaxOpenConns(24)
+	pool.SetMaxIdleConns(8)
+	pool.SetConnMaxLifetime(15 * time.Minute)
 	db, err := gorm.Open(mysql.New(mysql.Config{Conn: pool, SkipInitializeWithVersion: true}), &gorm.Config{
 		SkipDefaultTransaction: true, DisableAutomaticPing: true,
 		Logger: logger.Default.LogMode(logger.Silent),
@@ -51,6 +63,31 @@ func Open(ctx context.Context, dsn string, clock delegation.Clock) (*Ledger, err
 		return nil, fmt.Errorf("open MySQL ledger: %w", err)
 	}
 	return &Ledger{db: db, clock: clock}, nil
+}
+
+func (l *Ledger) CheckReady(ctx context.Context) error {
+	files, err := fs.Glob(migrations, "migrations/*.sql")
+	if err != nil {
+		return err
+	}
+	var applied []struct{ Version, Checksum string }
+	if err := l.db.WithContext(ctx).Raw("SELECT version, checksum FROM stead_schema_migrations").Scan(&applied).Error; err != nil {
+		return err
+	}
+	checksums := make(map[string]string, len(applied))
+	for _, row := range applied {
+		checksums[row.Version] = row.Checksum
+	}
+	for _, path := range files {
+		body, err := migrations.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if checksums[path] != fmt.Sprintf("%x", sha256.Sum256(body)) {
+			return fmt.Errorf("migration %s is missing or differs", path)
+		}
+	}
+	return nil
 }
 
 func (l *Ledger) Close() error {

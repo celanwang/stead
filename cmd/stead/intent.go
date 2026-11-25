@@ -5,7 +5,9 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/celanwang/stead/internal/intent"
 )
@@ -28,13 +30,12 @@ func runDraft(ctx context.Context, args []string) error {
 	if *file != "" {
 		d, err = readDraft(*file)
 	} else {
-		model, configErr := intent.NewChatCompletions(intent.Config{
-			Endpoint: os.Getenv("STEAD_MODEL_ENDPOINT"),
-			Model:    os.Getenv("STEAD_MODEL"),
-			APIKey:   os.Getenv("STEAD_MODEL_API_KEY"),
-		}, nil)
+		model, configErr := configuredModel()
 		if configErr != nil {
 			return configErr
+		}
+		if model == nil {
+			return errors.New("configure STEAD_MODEL_ENDPOINT and STEAD_MODEL or DASHSCOPE_API_KEY")
 		}
 		d, err = model.Interpret(ctx, *text)
 	}
@@ -42,6 +43,31 @@ func runDraft(ctx context.Context, args []string) error {
 		return err
 	}
 	return printJSON(d)
+}
+
+func configuredModel() (intent.Interpreter, error) {
+	cfg := intent.Config{
+		Endpoint: os.Getenv("STEAD_MODEL_ENDPOINT"), Model: os.Getenv("STEAD_MODEL"), APIKey: os.Getenv("STEAD_MODEL_API_KEY"),
+	}
+	bailian := os.Getenv("DASHSCOPE_API_KEY")
+	if cfg.Endpoint == "" && bailian != "" {
+		cfg.Endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+	}
+	if cfg.Endpoint == "" && cfg.Model == "" && cfg.APIKey == "" {
+		return nil, nil
+	}
+	if u, err := url.Parse(cfg.Endpoint); err == nil && u.Scheme == "https" {
+		host := strings.ToLower(u.Hostname())
+		if host == "dashscope.aliyuncs.com" || host == "dashscope-intl.aliyuncs.com" || strings.HasSuffix(host, ".maas.aliyuncs.com") {
+			if cfg.APIKey == "" {
+				cfg.APIKey = bailian
+			}
+			if cfg.Model == "" {
+				cfg.Model = "qwen-plus"
+			}
+		}
+	}
+	return intent.NewChatCompletions(cfg, nil)
 }
 
 func readDraft(path string) (intent.Draft, error) {

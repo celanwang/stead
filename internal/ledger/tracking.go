@@ -273,6 +273,14 @@ func (l *Ledger) TrackingFeed(ctx context.Context, owner, project string, kind t
 	return trackingRecords(query)
 }
 
+func (l *Ledger) TrackingInbox(ctx context.Context, owner, project string, limit int) ([]TrackingRecord, error) {
+	if err := validateTrackingScope(owner, project); err != nil {
+		return nil, err
+	}
+	query := l.db.WithContext(ctx).Where("owner = ? AND project = ?", owner, project)
+	return trackingRecords(pendingTracking(query).Limit(limit))
+}
+
 func (l *Ledger) AcknowledgeTracking(ctx context.Context, owner, project string, seq uint64) (TrackingRecord, error) {
 	if err := validateTrackingScope(owner, project); err != nil {
 		return TrackingRecord{}, err

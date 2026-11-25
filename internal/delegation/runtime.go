@@ -24,6 +24,7 @@ type Runtime struct {
 	Proposer Proposer
 	Executor Executor
 	Verify   func(context.Context) error
+	Probe    func(context.Context) error
 }
 
 func (r Runtime) Receive(ctx context.Context, e Event) (bool, error) {
@@ -115,6 +116,14 @@ func (r Runtime) Run(ctx context.Context, interval time.Duration, report func(er
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for ctx.Err() == nil {
+		if r.Probe != nil {
+			if err := r.Probe(ctx); err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
+				return fmt.Errorf("worker session lost: %w", err)
+			}
+		}
 		if err := r.Step(ctx); err != nil && ctx.Err() == nil {
 			report(err)
 		}

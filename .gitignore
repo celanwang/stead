@@ -43,3 +43,8 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 .fleet/
+
+# Local deployment credentials
+.env
+.env.*
+!.env.example

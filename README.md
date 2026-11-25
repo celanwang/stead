@@ -8,6 +8,8 @@ Stead is the volunteer tucked inside *instead*. Hand it a task, and that part of
 
 Stead runs long-lived scheduling and briefing delegations, tracks source changes, and learns notification policies from reviewed feedback. [Personal Agent guide](docs/personal-agent.md)
 
+Deploy the API, worker, migrations and MySQL together with Docker Compose. For other runtimes, `stead serve` and `stead worker` can run in separate processes against the same migrated ledger. [Deployment and operations](docs/operations.md) · [HTTP API](docs/http-api.md)
+
 ## Run locally
 
 Use Go 1.27.0 or later and a MySQL 8 instance. The commands below start a dedicated MySQL 8.0.40 container on loopback. Run the readiness query again if the server is still starting.
@@ -57,7 +59,7 @@ Once the action is `delivered`, its receipt references an independent delivery r
 ./stead status -id "$ID"
 ```
 
-Run the same worker command with the same directory after a restart. MySQL keeps the original wait and deadline. The worker marks interrupted sends `unknown` and retains their resource occupations. Use `stead settle -h` to record a verified scheduling outcome. Briefing deliveries use a reference provider with separately recorded receipts. Feishu ingress and receipt conversion have local tests.
+Run the same worker command with the same directory after a restart. MySQL keeps the original wait and deadline. The worker marks interrupted sends `unknown` and retains their resource occupations. Use `stead settle -h` to record a verified scheduling outcome. Briefing deliveries use a reference provider with separately recorded receipts. Configure Feishu credentials and an explicit chat allowlist to enable Feishu scheduling delivery. [Deployment and operations](docs/operations.md)
 
 When status shows a result, export and replay the audit records with the simulation package. Replay uses the stored proposals, decision times, and receipts. The file command runs without a database connection.
 
@@ -98,6 +100,7 @@ The acceptance suite covers restart and deduplication, revocation, overlapping c
 - `internal/scenarios/tracking/` reduces source observations into versioned objects and notifications.
 - `internal/preferences/` resolves scoped user preferences and overrides.
 - `internal/intent/` validates task drafts and adapts an optional model endpoint.
+- `internal/httpapi/` exposes owner-scoped submissions, approvals and tracking feeds.
 - `internal/rsi/` runs bounded improvement and evaluates releases for tracking.
 - `internal/channels/ingress/` accepts authenticated source updates on loopback.
 - `internal/channels/feishu/` translates verified messages and delivery reports at the channel boundary.

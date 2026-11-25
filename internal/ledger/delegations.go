@@ -14,12 +14,69 @@ import (
 
 func (l *Ledger) Create(ctx context.Context, d delegation.Delegation) error {
 	d.Deadline = d.Deadline.UTC().Truncate(time.Microsecond)
-	if err := delegation.ValidateNew(d, l.now()); err != nil {
+	at := l.now()
+	if !at.Before(d.Deadline) {
+		return ErrSubmissionDeadline
+	}
+	if err := delegation.ValidateNew(d, at); err != nil {
 		return err
 	}
 	d.Version = 1
 	row := delegationRow{ID: d.ID, Version: d.Version, Ready: true, WakeAt: d.Deadline, Data: d}
 	return l.db.WithContext(ctx).Create(&row).Error
+}
+
+var (
+	ErrSubmissionConflict  = errors.New("idempotency key belongs to a different submission")
+	ErrSubmissionDeadline  = errors.New("delegation deadline must be in the future")
+	ErrSourceEventConflict = errors.New("source event ID was used for a different event")
+	ErrApprovalChanged     = errors.New("approval no longer matches the current wait and scope")
+)
+
+func (l *Ledger) Submit(ctx context.Context, d delegation.Delegation) (delegation.Delegation, bool, error) {
+	if d.SubmissionHash == "" {
+		return delegation.Delegation{}, false, errors.New("submission fingerprint is required")
+	}
+	prior, err := l.Delegation(ctx, d.ID)
+	if errors.Is(err, delegation.ErrNotFound) {
+		err = l.Create(ctx, d)
+		if err == nil {
+			d.Version = 1
+			d.Deadline = d.Deadline.UTC().Truncate(time.Microsecond)
+			return d, true, nil
+		}
+		var duplicate *mysqldriver.MySQLError
+		if !errors.As(err, &duplicate) || duplicate.Number != 1062 {
+			return delegation.Delegation{}, false, err
+		}
+		prior, err = l.Delegation(ctx, d.ID)
+	}
+	if err != nil {
+		return delegation.Delegation{}, false, err
+	}
+	if prior.Owner != d.Owner || prior.SubmissionHash != d.SubmissionHash {
+		return delegation.Delegation{}, false, ErrSubmissionConflict
+	}
+	return prior, false, nil
+}
+
+func (l *Ledger) CheckEventRetry(ctx context.Context, e delegation.Event) (bool, error) {
+	err := checkEventRetry(l.db.WithContext(ctx), e)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func checkEventRetry(tx *gorm.DB, e delegation.Event) error {
+	var prior eventRow
+	if err := tx.Take(&prior, "source = ? AND external_id = ?", e.Source, e.ExternalID).Error; err != nil {
+		return err
+	}
+	if prior.DelegationID != e.DelegationID || prior.Data.IntakeFingerprint != e.IntakeFingerprint {
+		return ErrSourceEventConflict
+	}
+	return nil
 }
 
 func (l *Ledger) Receive(ctx context.Context, e delegation.Event) (bool, error) {
@@ -45,17 +102,12 @@ func (l *Ledger) Receive(ctx context.Context, e delegation.Event) (bool, error) 
 		if err := tx.Create(&row).Error; err != nil {
 			var duplicate *mysqldriver.MySQLError
 			if errors.As(err, &duplicate) && duplicate.Number == 1062 {
-				var existing eventRow
-				// Only duplicates of the source event are successful retries.
-				if err := tx.Take(&existing, "source = ? AND external_id = ?", e.Source, e.ExternalID).Error; err != nil {
-					return err
-				}
-				if existing.DelegationID != d.ID {
-					return errors.New("source event already belongs to another delegation")
-				}
-				return nil
+				return checkEventRetry(tx, e)
 			}
 			return err
+		}
+		if e.IntakeFingerprint != "" && e.Kind == delegation.Approval && !delegation.ApprovalMatches(d.Data, e) {
+			return ErrApprovalChanged
 		}
 
 		if e.Kind == delegation.Revoke {

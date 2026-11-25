@@ -9,13 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/celanwang/stead/internal/delegation"
 	"github.com/celanwang/stead/internal/ledger"
-	"github.com/celanwang/stead/internal/scenarios/briefing"
-	"github.com/celanwang/stead/internal/scenarios/scheduling"
-	"github.com/celanwang/stead/internal/simulation"
 )
 
 const usage = `Stead is a personal agent harness for managing delegated tasks.
@@ -23,6 +19,7 @@ const usage = `Stead is a personal agent harness for managing delegated tasks.
 Usage: stead <command> [options]
 
   migrate     Apply the MySQL schema migrations.
+  serve       Run the authenticated HTTP API.
   worker      Run the background worker with the local providers.
   draft       Interpret a request or validate an offline draft for review.
   submit      Submit a scheduling delegation.
@@ -57,6 +54,8 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "serve":
+		return runServe(ctx, args[1:])
 	case "replay":
 		return runReplay(ctx, args[1:])
 	case "briefing":
@@ -133,28 +132,6 @@ func parseFlags(flags *flag.FlagSet, args []string) error {
 		return fmt.Errorf("unexpected argument %q", flags.Arg(0))
 	}
 	return nil
-}
-
-func workerCommand(flags *flag.FlagSet) command {
-	dir := flags.String("deliveries", "", "directory for simulated deliveries")
-	interval := flags.Duration("poll", 250*time.Millisecond, "ledger polling interval")
-	observe := flags.Duration("observe", 15*time.Second, "time between briefing provider checks")
-	return func(ctx context.Context, l *ledger.Ledger) error {
-		if *dir == "" || *observe <= 0 {
-			return errors.New("worker requires -deliveries and a positive -observe interval")
-		}
-		executor, err := simulation.NewExecutor(*dir)
-		if err != nil {
-			return err
-		}
-		runtime := delegation.Runtime{
-			Store: l, Proposer: briefing.Proposer{World: l, Poll: *observe, Other: scheduling.Proposer{}},
-			Executor: briefing.Executor{World: l, Other: executor}, Verify: l.VerifyBriefingReceipts,
-		}
-		return l.WithWorker(ctx, func() error {
-			return runtime.Run(ctx, *interval, func(err error) { fmt.Fprintln(os.Stderr, err) })
-		})
-	}
 }
 
 func printJSON(v any) error {

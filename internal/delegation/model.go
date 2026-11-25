@@ -21,16 +21,17 @@ type WallClock struct{}
 func (WallClock) Now() time.Time { return time.Now().UTC() }
 
 type Delegation struct {
-	ID       string
-	Owner    string
-	Sources  []string
-	Goal     string
-	Request  Scope
-	Version  uint64
-	Deadline time.Time
-	Wait     *Wait
-	Result   *Result
-	Briefing *Briefing
+	ID             string
+	Owner          string
+	Sources        []string
+	Goal           string
+	Request        Scope
+	Version        uint64
+	Deadline       time.Time
+	Wait           *Wait
+	Result         *Result
+	Briefing       *Briefing
+	SubmissionHash string `json:",omitempty"`
 }
 
 type Wait struct {
@@ -71,20 +72,21 @@ const (
 )
 
 type Event struct {
-	ID             string
-	Source         string
-	ExternalID     string
-	DelegationID   string
-	Sender         string
-	Correlation    string
-	Kind           EventKind
-	Raw            string
-	ReceivedAt     time.Time
-	Grant          *GrantTerms
-	RevokeGrantID  string
-	MayAffectGrant bool
-	Review         *ReviewNote `json:",omitempty"`
-	Amendment      *Amendment  `json:",omitempty"`
+	ID                string
+	Source            string
+	ExternalID        string
+	DelegationID      string
+	Sender            string
+	Correlation       string
+	Kind              EventKind
+	Raw               string
+	ReceivedAt        time.Time
+	Grant             *GrantTerms
+	RevokeGrantID     string
+	MayAffectGrant    bool
+	Review            *ReviewNote `json:",omitempty"`
+	Amendment         *Amendment  `json:",omitempty"`
+	IntakeFingerprint string      `json:",omitempty"`
 }
 
 func (e Event) BlocksClaim(d Delegation) bool {

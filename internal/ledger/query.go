@@ -9,6 +9,27 @@ import (
 	"gorm.io/gorm"
 )
 
+func (l *Ledger) Delegation(ctx context.Context, id string) (delegation.Delegation, error) {
+	var row delegationRow
+	err := l.db.WithContext(ctx).Take(&row, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = delegation.ErrNotFound
+	}
+	return row.Data, err
+}
+
+func (l *Ledger) ListPage(ctx context.Context, owner, after string, limit int) ([]delegation.Delegation, error) {
+	var rows []delegationRow
+	err := l.db.WithContext(ctx).Model(&delegationRow{}).
+		Where("CAST(JSON_UNQUOTE(JSON_EXTRACT(data, '$.Owner')) AS BINARY) = CAST(? AS BINARY) AND id > ?", owner, after).
+		Order("id").Limit(limit).Find(&rows).Error
+	items := make([]delegation.Delegation, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, row.Data)
+	}
+	return items, err
+}
+
 func (l *Ledger) List(ctx context.Context, owner string) ([]delegation.Delegation, error) {
 	if owner == "" {
 		return nil, errors.New("list requires an owner")
