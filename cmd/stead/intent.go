@@ -26,20 +26,7 @@ func runDraft(ctx context.Context, args []string) error {
 	var d intent.Draft
 	var err error
 	if *file != "" {
-		f, openErr := os.Open(*file)
-		if openErr != nil {
-			return openErr
-		}
-		defer f.Close()
-		const maxDraft = 256 << 10
-		data, readErr := io.ReadAll(io.LimitReader(f, maxDraft+1))
-		if readErr != nil {
-			return readErr
-		}
-		if len(data) > maxDraft {
-			return errors.New("draft file exceeds 256 KiB")
-		}
-		d, err = intent.ParseDraft(data)
+		d, err = readDraft(*file)
 	} else {
 		model, configErr := intent.NewChatCompletions(intent.Config{
 			Endpoint: os.Getenv("STEAD_MODEL_ENDPOINT"),
@@ -55,4 +42,21 @@ func runDraft(ctx context.Context, args []string) error {
 		return err
 	}
 	return printJSON(d)
+}
+
+func readDraft(path string) (intent.Draft, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return intent.Draft{}, err
+	}
+	defer f.Close()
+	const maxDraft = 256 << 10
+	data, err := io.ReadAll(io.LimitReader(f, maxDraft+1))
+	if err != nil {
+		return intent.Draft{}, err
+	}
+	if len(data) > maxDraft {
+		return intent.Draft{}, errors.New("draft file exceeds 256 KiB")
+	}
+	return intent.ParseDraft(data)
 }

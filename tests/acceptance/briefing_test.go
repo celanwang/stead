@@ -257,3 +257,32 @@ func TestBriefingReviewerAndOutOfOrderFacts(t *testing.T) {
 		"current reviewer evidence did not permit asking owner: %+v", out)
 	b.deliveries(0)
 }
+
+func TestBriefingRecoveryVerifiesProviderReceipt(t *testing.T) {
+	b := newBriefCase(t, true, "launch")
+	b.review(b.fact("launch", "Friday", true, 0))
+	action := b.stageBrief()
+	claimed, err := b.l.Claim(b.ctx, action.ID)
+	must(t, err)
+	check(t, claimed != nil, "action was not claimed")
+	receipt, err := b.rt.Executor.Execute(b.ctx, *claimed)
+	must(t, err)
+	check(t, receipt.State == delegation.Delivered, "provider did not deliver: %+v", receipt)
+	b.deliveries(1)
+
+	// Interrupt the worker after the provider transaction and before settlement.
+	must(t, b.l.Close())
+	b.l = b.connect()
+	b.rt.Store = b.l
+	must(t, b.rt.Recover(b.ctx))
+	check(t, b.status(b.l, b.d.ID).Actions[0].State == delegation.Unknown, "interrupted action did not become unknown")
+	must(t, b.l.VerifyBriefingReceipts(b.ctx))
+	must(t, b.rt.Dispatch(b.ctx, action.ID))
+	result := b.advance().Result
+	state := b.status(b.l, b.d.ID).Actions[0].State
+	check(t, state == delegation.Delivered && result != nil && result.Complete && b.sends == 1,
+		"provider proof not restored without a resend: state=%s result=%+v sends=%d", state, result, b.sends)
+	b.deliveries(1)
+	b.verifyReplay()
+	t.Log("recovered unknown action by reading the original provider receipt, with one total delivery")
+}

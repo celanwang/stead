@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/celanwang/stead/internal/delegation"
+	"github.com/celanwang/stead/internal/intent"
 	"github.com/celanwang/stead/internal/ledger"
 )
 
@@ -86,19 +87,42 @@ func briefingAudience(flags *flag.FlagSet) command {
 }
 
 func briefingSubmit(flags *flag.FlagSet) command {
+	file := flags.String("draft", "", "reviewed briefing draft JSON file")
 	owner := flags.String("owner", "", "delegation owner")
 	project := flags.String("project", "", "project key")
 	reviewer := flags.String("reviewer", "", "specified reviewer principal")
 	target := flags.String("target", "", "stable destination ID")
 	audience := flags.String("audience", "internal", "required audience classification")
 	sources := flags.String("sources", "", "comma-separated stable source IDs")
-	format := flags.String("format", "bullets", "bullets or plain")
+	format := flags.String("format", "", "bullets or plain (default bullets)")
 	goal := flags.String("goal", "", "briefing goal")
 	ttl := flags.Duration("ttl", time.Hour, "time until the delegation deadline")
 	lead := flags.Duration("ask-lead", 15*time.Minute, "latest intervention lead time when there is no fallback")
 	fallback := flags.Bool("fallback", true, "return the prepared draft to the owner at deadline")
 	return func(ctx context.Context, l *ledger.Ledger) error {
-		ids := strings.Split(*sources, ",")
+		var ids []string
+		if *file != "" {
+			draft, err := readDraft(*file)
+			if err != nil {
+				return err
+			}
+			if draft.Kind != intent.Briefing {
+				return errors.New("briefing submit requires a briefing draft")
+			}
+			if *goal == "" {
+				*goal = draft.Goal
+			}
+			ids = draft.Briefing.Sources
+			if *format == "" {
+				*format = draft.Briefing.Format
+			}
+		}
+		if *format == "" {
+			*format = "bullets"
+		}
+		if *sources != "" {
+			ids = strings.Split(*sources, ",")
+		}
 		for i := range ids {
 			ids[i] = strings.TrimSpace(ids[i])
 		}

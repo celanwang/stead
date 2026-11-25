@@ -54,7 +54,7 @@ const instruction = `Prepare one JSON draft for its owner's review. Use the user
 {"kind":"scheduling","goal":"...","scheduling":{"target":"...","content":"..."}}
 {"kind":"briefing","goal":"...","briefing":{"sources":["..."],"format":"..."}}
 {"kind":"tracking","goal":"...","tracking":{"source":"...","object_id":"...","watch":"..."}}
-For tracking, use the stable object identifier given by the user. Only include facts supplied by the user. If required details are missing, the request is ambiguous, or no shape fits, return {"clarification":"one question for the owner"}. You only draft. Do not run tools, issue approvals, change settings, or add fields.`
+For briefing format, use "bullets" or "plain". For tracking, use the stable object identifier given by the user. Only include facts supplied by the user. If required details are missing, the request is ambiguous, or no shape fits, return {"clarification":"one question for the owner"}. You only draft. Do not run tools, issue approvals, change settings, or add fields.`
 
 type message struct {
 	Role    string `json:"role"`

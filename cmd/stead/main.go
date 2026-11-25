@@ -22,16 +22,20 @@ const usage = `Stead is a personal agent harness for managing delegated tasks.
 
 Usage: stead <command> [options]
 
-  migrate   Apply the MySQL schema migrations.
-  worker    Run the background worker with the local providers.
-  draft     Interpret a request or validate an offline draft for review.
-  submit    Submit a scheduling delegation.
-  briefing  Prepare and deliver a reviewed briefing with deadline fallback.
-  event     Record an input, approval, revocation, or completion evidence.
-  list      List owner delegations and their current state.
-  status    Inspect a delegation and its ledger records.
-  settle    Record a verified outcome for an action awaiting verification.
-  replay    Reconstruct recorded decisions and receipts offline.
+  migrate     Apply the MySQL schema migrations.
+  worker      Run the background worker with the local providers.
+  draft       Interpret a request or validate an offline draft for review.
+  submit      Submit a scheduling delegation.
+  briefing    Prepare and deliver a reviewed briefing with deadline fallback.
+  track       Track source revisions and read the notification feed.
+  ingress     Receive source observations from a trusted local collector.
+  preference  Manage scoped and temporary user preferences.
+  rsi         Evaluate, improve, and activate versioned tracking policies.
+  event       Record an input, approval, revocation, or completion evidence.
+  list        List owner delegations and their current state.
+  status      Inspect a delegation and its ledger records.
+  settle      Record a verified outcome for an action awaiting verification.
+  replay      Reconstruct recorded decisions and receipts offline.
 
 Run 'stead <command> -h' for command options. Set STEAD_MYSQL_DSN for ledger access.
 `
@@ -59,6 +63,14 @@ func run(ctx context.Context, args []string) error {
 		return runBriefing(ctx, args[1:])
 	case "draft":
 		return runDraft(ctx, args[1:])
+	case "track":
+		return runTracking(ctx, args[1:], notificationPolicy)
+	case "ingress":
+		return runIngress(ctx, args[1:], notificationPolicy)
+	case "preference":
+		return runPreferences(ctx, args[1:])
+	case "rsi":
+		return runRSI(ctx, args[1:])
 	}
 
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)

@@ -6,6 +6,8 @@ Stead is the volunteer tucked inside *instead*. Hand it a task, and that part of
 
 [Project docs](https://app.notion.com/p/sanduo/Stead-ed7c56617fb883acb3c2016d8f9d07ff) — Stead’s core idea and product design.
 
+Stead runs long-lived scheduling and briefing delegations, tracks source changes, and learns notification policies from reviewed feedback. [Personal Agent guide](docs/personal-agent.md)
+
 ## Run locally
 
 Use Go 1.27.0 or later and a MySQL 8 instance. The commands below start a dedicated MySQL 8.0.40 container on loopback. Run the readiness query again if the server is still starting.
@@ -55,7 +57,7 @@ Once the action is `delivered`, its receipt references an independent delivery r
 ./stead status -id "$ID"
 ```
 
-Run the same worker command with the same directory after a restart. MySQL keeps the original wait and deadline. The worker marks interrupted sends `unknown` and retains their resource occupations. Use `stead settle -h` to record a verified outcome. Feishu ingress and receipt conversion have local tests. The CLI worker sends only through the simulator.
+Run the same worker command with the same directory after a restart. MySQL keeps the original wait and deadline. The worker marks interrupted sends `unknown` and retains their resource occupations. Use `stead settle -h` to record a verified scheduling outcome. Briefing deliveries use a reference provider with separately recorded receipts. Feishu ingress and receipt conversion have local tests.
 
 When status shows a result, export and replay the audit records with the simulation package. Replay uses the stored proposals, decision times, and receipts. The file command runs without a database connection.
 
@@ -84,7 +86,7 @@ STEAD_TEST_MYSQL_DSN='stead:stead-local@tcp(127.0.0.1:3307)/stead_acceptance' \
   go test -count=1 -v ./...
 ```
 
-The acceptance suite checks restart and deduplication, revocation during judgment, overlapping claims from two connections, a subprocess exiting after delivery, and completion or deadline expiry with replay. It also checks authorization expiry and resource release after a verified failure. Without `STEAD_TEST_MYSQL_DSN`, Go skips the MySQL tests.
+The acceptance suite covers restart and deduplication, revocation, overlapping claims, interrupted sends, deadline fallback and replay. It also checks briefing document and audience versions, source tracking with preferences, and the feedback-to-RSI release path. Without `STEAD_TEST_MYSQL_DSN`, Go skips the MySQL tests.
 
 ## Project layout
 
@@ -92,6 +94,12 @@ The acceptance suite checks restart and deduplication, revocation during judgmen
 - `internal/delegation/` contains the domain model, plugin contracts, and runtime.
 - `internal/ledger/` contains GORM transactions and versioned MySQL InnoDB migrations.
 - `internal/scenarios/scheduling/` contains the scheduling proposer.
+- `internal/scenarios/briefing/` binds review, draft preparation, and verified delivery.
+- `internal/scenarios/tracking/` reduces source observations into versioned objects and notifications.
+- `internal/preferences/` resolves scoped user preferences and overrides.
+- `internal/intent/` validates task drafts and adapts an optional model endpoint.
+- `internal/rsi/` runs bounded improvement and evaluates releases for tracking.
+- `internal/channels/ingress/` accepts authenticated source updates on loopback.
 - `internal/channels/feishu/` translates verified messages and delivery reports at the channel boundary.
 - `internal/simulation/` contains the controllable clock, simulated delivery records, fault hook, and offline replay.
 - `tests/acceptance/` exercises the runtime against MySQL. [Kernel design](https://app.notion.com/p/421c56617fb881768a5bf017788881bd)

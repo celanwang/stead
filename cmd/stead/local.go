@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/celanwang/stead/internal/delegation"
+	"github.com/celanwang/stead/internal/intent"
 	"github.com/celanwang/stead/internal/ledger"
 )
 
@@ -16,6 +17,7 @@ const localSource = "local"
 
 func submitCommand(flags *flag.FlagSet) command {
 	id := flags.String("id", "", "delegation ID (generated if omitted)")
+	file := flags.String("draft", "", "reviewed scheduling draft JSON file")
 	owner := flags.String("owner", "", "delegation owner")
 	goal := flags.String("goal", "", "scheduling goal")
 	target := flags.String("target", "", "destination for the scheduling action")
@@ -25,6 +27,24 @@ func submitCommand(flags *flag.FlagSet) command {
 	start := flags.String("starts", "", "resource interval start, RFC3339")
 	end := flags.String("ends", "", "resource interval end, RFC3339")
 	return func(ctx context.Context, l *ledger.Ledger) error {
+		if *file != "" {
+			draft, err := readDraft(*file)
+			if err != nil {
+				return err
+			}
+			if draft.Kind != intent.Scheduling {
+				return errors.New("submit requires a scheduling draft")
+			}
+			if *goal == "" {
+				*goal = draft.Goal
+			}
+			if *target == "" {
+				*target = draft.Scheduling.Target
+			}
+			if *content == "" {
+				*content = draft.Scheduling.Content
+			}
+		}
 		if *id == "" {
 			*id = rand.Text()
 		}
