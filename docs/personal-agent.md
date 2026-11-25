@@ -2,6 +2,15 @@
 
 Stead runs owner-scoped delegations and source tracking with a MySQL ledger. Run the [local setup](../README.md#run-locally) first. The command examples use the trusted local CLI. The briefing provider and scheduling delivery spool are reference environments for exercising handoffs and side effects. The Feishu boundary has local adapter tests.
 
+## Use the browser workspace
+
+Start the API, worker and database using the [deployment commands](operations.md), then open [Stead on loopback](http://127.0.0.1:8080/). Connect with your principal's API token. The browser keeps it for the current page session and clears it on disconnect.
+
+- **New delegation** creates a scheduling or briefing task. Optional model drafting fills supported fields to review before submission.
+- **Delegations** shows wait conditions, deadlines, exact scope, recent events and receipts. Approve, revoke, amend or report completion from the selected delegation. Status refresh pauses while an event is being edited.
+- **Reviews** opens a specific briefing by ID for its designated reviewer. It shows current source fingerprints and shareable excerpts. A review applies to the matching fingerprint.
+- **Notifications** shows unread source updates for a project and allows individual acknowledgment. Source intake and policy release remain available through their existing collector and CLI commands.
+
 ## Draft a delegation
 
 Structured commands work offline. For natural-language drafts, set `STEAD_MODEL_ENDPOINT` to a full Chat Completions endpoint, set `STEAD_MODEL` to your model name, and set `STEAD_MODEL_API_KEY` if the endpoint requires a key. `draft -text` sends the supplied description to that endpoint. It returns a draft for review, with scheduling, briefing, or tracking fields.

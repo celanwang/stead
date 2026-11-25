@@ -8,11 +8,13 @@ Use the bearer token configured for the principal in `STEAD_API_TOKENS`. Stead d
 | --- | --- |
 | `GET /healthz` | Process liveness, public |
 | `GET /readyz` | MySQL connectivity and migration checksums, public |
+| `GET /v1/session` | Identify the principal bound to this token |
 | `POST /v1/drafts` | Interpret JSON `{"text":"..."}` as a draft or request clarification |
 | `POST /v1/delegations` | Submit a scheduling or briefing delegation with an idempotency key |
 | `GET /v1/delegations?after=...` | Page through the current principal's delegations |
 | `GET /v1/delegations/{id}` | Read delegation status, grants, actions and receipts |
 | `POST /v1/delegations/{id}/events` | Record an owner event or a designated reviewer's review |
+| `GET /v1/reviews/{id}` | Read eligible source fingerprints and shareable excerpts as the designated reviewer |
 | `GET /v1/projects/{project}/feed` | Read up to 100 unread notifications |
 | `POST /v1/projects/{project}/feed/{seq}/ack` | Acknowledge one notification |
 

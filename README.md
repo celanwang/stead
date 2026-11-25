@@ -10,6 +10,8 @@ Stead runs long-lived scheduling and briefing delegations, tracks source changes
 
 Deploy the API, worker, migrations and MySQL together with Docker Compose. For other runtimes, `stead serve` and `stead worker` can run in separate processes against the same migrated ledger. [Deployment and operations](docs/operations.md) · [HTTP API](docs/http-api.md)
 
+The same server hosts a browser workspace for owners and briefing reviewers. Open [the local workspace](http://127.0.0.1:8080/) and connect using the token assigned to that principal. [Workspace guide](docs/personal-agent.md#use-the-browser-workspace)
+
 ## Run locally
 
 Use Go 1.27.0 or later and a MySQL 8 instance. The commands below start a dedicated MySQL 8.0.40 container on loopback. Run the readiness query again if the server is still starting.

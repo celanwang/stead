@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stead Workspace</title>
+  <link rel="stylesheet" href="/workspace.css">
+  <script type="module" src="/workspace.js"></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/"><span aria-hidden="true">S</span> Stead</a>
+    <nav id="nav" aria-label="Workspace" hidden>
+      <button data-screen="delegations">Delegations</button>
+      <button data-screen="compose">New delegation</button>
+      <button data-screen="reviews">Reviews</button>
+      <button data-screen="tracking">Notifications</button>
+    </nav>
+    <div id="session" class="session" hidden>
+      <span id="principal"></span>
+      <button id="disconnect" type="button">Disconnect</button>
+    </div>
+  </header>
+  <main>
+    <p id="message" role="status" aria-live="polite" hidden></p>
+    <section id="connect" class="card signin" aria-labelledby="connect-title">
+      <h1 id="connect-title">Connect to Stead</h1>
+      <p>Enter the API token assigned to your account.</p>
+      <form id="login">
+        <label>API token <input name="token" type="password" required autocomplete="off" spellcheck="false"></label>
+        <button class="primary">Connect</button>
+      </form>
+    </section>
+    <section id="delegations" hidden>
+      <div class="heading">
+        <h1>Delegations</h1>
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+      <div class="split">
+        <aside class="card queue" aria-label="Your delegations">
+          <div id="task-list"></div>
+          <button id="load-more" type="button" hidden>Load more</button>
+        </aside>
+        <article class="card detail" aria-labelledby="task-title">
+          <h2 id="task-title">Select a delegation</h2>
+          <div id="task-details"></div>
+          <form id="event" hidden>
+            <h3>Record a decision</h3>
+            <label>Action <select name="kind" id="event-kind" required></select></label>
+            <label data-event="approval" hidden>Authorization expires <input name="expires" type="datetime-local"></label>
+            <label data-event="revoke" hidden>Authorization <select name="grant"></select></label>
+            <div class="fields" data-event="amend" hidden>
+              <label>Recipient <input name="target"></label>
+              <label>Format <select name="format"><option value="">Keep format</option><option value="bullets">Bullets</option><option value="plain">Plain</option></select></label>
+              <label>Take over item <select name="take_over"></select></label>
+            </div>
+            <label>Original wording <textarea name="text" required rows="3"></textarea></label>
+            <button class="primary">Record decision</button>
+          </form>
+        </article>
+      </div>
+    </section>
+    <section id="compose" class="narrow" hidden>
+      <h1>New delegation</h1>
+      <form id="draft" class="card form-card">
+        <label>Describe the task <textarea name="text" rows="3" required></textarea></label>
+        <button>Draft with model</button>
+      </form>
+      <form id="create" class="card form-card">
+        <label>Type <select name="type" id="task-kind"><option value="scheduling">Scheduling</option><option value="briefing">Briefing</option></select></label>
+        <label>Goal <input name="goal" required></label>
+        <div class="fields">
+          <label>Deadline <input name="deadline" type="datetime-local" required></label>
+          <label>Recipient <input name="target" required></label>
+        </div>
+        <fieldset id="schedule-fields">
+          <legend>Scheduling</legend>
+          <label>Message <textarea name="content" rows="4" required></textarea></label>
+          <details>
+            <summary>Reserve a shared resource</summary>
+            <div class="fields">
+              <label>Resource key <input name="resource"></label>
+              <label>Starts <input name="start" type="datetime-local"></label>
+              <label>Ends <input name="end" type="datetime-local"></label>
+            </div>
+          </details>
+        </fieldset>
+        <fieldset id="briefing-fields" hidden disabled>
+          <legend>Briefing</legend>
+          <div class="fields">
+            <label>Project <input name="project" required></label>
+            <label>Reviewer <input name="reviewer" required></label>
+            <label>Audience class <input name="audience" value="internal" required></label>
+            <label>Format <select name="format"><option value="bullets">Bullets</option><option value="plain">Plain</option></select></label>
+          </div>
+          <label>Source IDs <input name="sources" placeholder="summary, budget" required></label>
+          <label class="checkbox"><input name="fallback" type="checkbox" checked> Return the draft if the deadline is missed</label>
+        </fieldset>
+        <button class="primary">Submit delegation</button>
+      </form>
+    </section>
+    <section id="reviews" class="narrow" hidden>
+      <h1>Reviews</h1>
+      <form id="open-review" class="card inline">
+        <label>Delegation ID <input name="id" required></label>
+        <button>Open review</button>
+      </form>
+      <article id="review-details" class="card form-card" hidden>
+        <h2 id="review-title"></h2>
+        <div id="review-items"></div>
+        <form id="record-review" hidden>
+          <label>Source <select name="source" required></select></label>
+          <label>Review wording <textarea name="text" required rows="3"></textarea></label>
+          <button class="primary">Record review</button>
+        </form>
+      </article>
+    </section>
+    <section id="tracking" class="narrow" hidden>
+      <h1>Notifications</h1>
+      <form id="open-feed" class="card inline">
+        <label>Project <input name="project" required></label>
+        <button>Load notifications</button>
+      </form>
+      <div id="notifications" class="card form-card" hidden></div>
+    </section>
+  </main>
+</body>
+</html>

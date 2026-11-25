@@ -88,6 +88,7 @@ func (a *API) authorized(run operation) http.HandlerFunc {
 
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
+	a.workspaceRoutes(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		write(w, http.StatusOK, map[string]string{"status": "alive"})
 	})
