@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0.40
+        env:
+          MYSQL_DATABASE: stead
+          MYSQL_USER: stead
+          MYSQL_PASSWORD: stead-ci
+          MYSQL_ROOT_PASSWORD: stead-ci-root
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="mysql --host=127.0.0.1 --user=stead --password=stead-ci stead --execute='SELECT 1'"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l cmd internal tests)
+          if [ -n "$unformatted" ]; then
+            printf '%s\n' "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go build ./...
+      - run: docker compose --env-file .env.example config --quiet
+      - name: Run tests with MySQL and race detection
+        env:
+          STEAD_TEST_MYSQL_DSN: "stead:stead-ci@tcp(127.0.0.1:${{ job.services.mysql.ports['3306'] }})/stead"
+        run: go test -race -count=1 ./...
